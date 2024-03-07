@@ -54,14 +54,36 @@ class MainActivity : ComponentActivity() {
                     val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                     recognizer.process(image)
                         .addOnSuccessListener { visionText ->
-                            // Here you can handle the recognized text
-                            val resultText = visionText.text
-                            for (block in visionText.textBlocks) {
-                                val blockText = block.text
-                                val blockCornerPoints = block.cornerPoints
-                                val blockFrame = block.boundingBox
-                                Log.println(Log.DEBUG, "blockText", blockText)
-                                // Process text block here
+                            // Initialize a map to hold detected key/value pairs
+                            val keyValuePairs = mutableMapOf<String, String>()
+                            var pendingKey: String? = null
+
+                            visionText.textBlocks.forEachIndexed { index, block ->
+                                val text = block.text.trim()
+                                if (pendingKey != null) {
+                                    // This block is a continuation of the previous key
+                                    keyValuePairs[pendingKey!!] = text
+                                    pendingKey = null
+                                } else if (text.endsWith(":")) {
+                                    // This block's text ends with ":", so treat it as a key and prepare to append the next block as its value
+                                    pendingKey = text
+                                } else {
+                                    val separatorIndex = text.indexOf(":")
+                                    if (separatorIndex != -1) {
+                                        val key = text.substring(0, separatorIndex + 1).trim()
+                                        val value = if (separatorIndex + 1 < text.length) text.substring(separatorIndex + 1).trim() else ""
+                                        if (value.isEmpty() && index + 1 < visionText.textBlocks.size) {
+                                            // If there's no value after ":", and there is a next block, prepare to append the next block as its value
+                                            pendingKey = key
+                                        } else {
+                                            // Normal key-value pair processing
+                                            keyValuePairs[key] = value
+                                        }
+                                    }
+                                }
+                            }
+                            keyValuePairs.forEach{
+                                Log.println(Log.DEBUG, "KeyValuePairs", it.toString())
                             }
                         }
                         .addOnFailureListener { e ->
